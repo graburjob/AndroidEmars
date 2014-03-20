@@ -1,7 +1,10 @@
 package com.example.androidhive;
 
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.message.BasicNameValuePair;
@@ -9,22 +12,28 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import com.example.androidhive.EditProductActivity.DeleteProduct;
-import com.example.androidhive.EditProductActivity.GetProductDetails;
-import com.example.androidhive.EditProductActivity.SaveProductDetails;
-
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.ProgressDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.nfc.NdefMessage;
+import android.nfc.NdefRecord;
+import android.nfc.NfcAdapter;
+import android.nfc.Tag;
+import android.nfc.tech.Ndef;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.app.Activity;
-import android.app.ProgressDialog;
-import android.content.Intent;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
 
 public class PatientDetailsActivity extends Activity {
+	
+	private NfcAdapter nfcAdapter;
 	
 	EditText txtPatientName;
 	EditText txtGender;
@@ -50,8 +59,8 @@ public class PatientDetailsActivity extends Activity {
 	private static final String TAG_PATIENT_ADDRESS="Address";
 	
 	// url to create new product
-	private static String url_getpatient_details = "http://10.0.2.2/android_connect/get_patient_details.php";
-	//private static String url_validate_user = "http://zatika.co/android_connect/get_patient_details.php";
+	//private static String url_getpatient_details = "http://zatika.co/android_connect/get_patient_details.php";
+	private static String url_getpatient_details = "http://zatika.co/android_connect/get_patient_details.php";
 	
 
 	@Override
@@ -61,13 +70,31 @@ public class PatientDetailsActivity extends Activity {
 		// save button
 		btnSave = (Button) findViewById(R.id.btnSave);
 		btnDelete = (Button) findViewById(R.id.btnDelete);
-
-		// getting product details from intent
-		Intent intent = getIntent();
 		
-		// getting product id (pid) from intent
-		patientID = intent.getStringExtra(TAG_PATIENT_ID);
-
+		nfcAdapter = NfcAdapter.getDefaultAdapter(this);
+		
+		if (null == nfcAdapter) {
+			Toast.makeText(this, "NFC  feature is not available in device",
+					Toast.LENGTH_SHORT).show();
+		} else if (!nfcAdapter.isEnabled()) {
+			AlertDialog.Builder alert = new AlertDialog.Builder(this);
+			alert.setTitle("Enable NFC");
+			alert.setMessage("NFC is turned off.\nDo you really want to turn on NFC?");
+			alert.setPositiveButton("OK",
+					new DialogInterface.OnClickListener() {
+						@Override
+						public void onClick(DialogInterface arg0, int arg1) {
+							startActivity(new Intent(
+									android.provider.Settings.ACTION_NFC_SETTINGS));
+							patientID = handleIntent(getIntent());
+						}
+					});
+			alert.setNegativeButton("Cancel", null);
+			alert.show();
+		} else if (nfcAdapter.isEnabled()) {
+			patientID=handleIntent(getIntent());
+		}
+		
 		// Getting complete product details in background thread
 		new GetPatientDetails().execute();
 
@@ -93,11 +120,38 @@ public class PatientDetailsActivity extends Activity {
 		
 	}
 
+
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.activity_patient_details, menu);
 		return true;
+	}
+	
+	private String handleIntent(Intent intent) {
+		if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.getAction()
+				|| NfcAdapter.ACTION_TAG_DISCOVERED == intent.getAction()) {
+			if ("text/plain".equalsIgnoreCase(intent.getType())) {
+				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+				try {
+					String scanResult = new NdefReaderTask().execute(tag).get();
+					Toast.makeText(getBaseContext(), scanResult, Toast.LENGTH_SHORT).show();
+					patientID = scanResult;
+				} catch (InterruptedException e) {
+					throw new RuntimeException(
+							"Problem occured while reading text from NFC");
+				} catch (ExecutionException e) {
+					throw new RuntimeException(
+							"Problem occured while reading text from NFC");
+				}
+			} else {
+				Toast.makeText(this, "MIME type is not recognized",
+						Toast.LENGTH_SHORT).show();
+			}
+		} else {
+			patientID = intent.getStringExtra(TAG_PATIENT_ID);
+		}
+		return patientID;
 	}
 	
 
@@ -185,4 +239,41 @@ public class PatientDetailsActivity extends Activity {
 		}
 	}
 
+	private class NdefReaderTask extends AsyncTask<Tag, Void, String> {
+		@Override
+		protected String doInBackground(Tag... params) {
+			String result = null;
+			Tag tag = params[0];
+			Ndef ndef = Ndef.get(tag);
+			if (ndef == null) {
+				result = null;
+			}
+			NdefMessage ndefMessage = ndef.getCachedNdefMessage();
+			NdefRecord[] records = ndefMessage.getRecords();
+			for (NdefRecord ndefRecord : records) {
+				if (ndefRecord.getTnf() == NdefRecord.TNF_WELL_KNOWN
+						&& Arrays.equals(ndefRecord.getType(),
+								NdefRecord.RTD_TEXT)) {
+					try {
+						result = readText(ndefRecord);
+					} catch (UnsupportedEncodingException e) {
+						throw new RuntimeException(
+								"Problem occured while reading text from NFC");
+					}
+				}
+			}
+			return result;
+		}
+
+		private String readText(NdefRecord record)
+				throws UnsupportedEncodingException {
+			byte[] payload = record.getPayload();
+			String textEncoding = ((payload[0] & 128) == 0) ? "UTF-8"
+					: "UTF-16";
+			int languageCodeLength = payload[0] & 0063;
+			return new String(payload, languageCodeLength + 1, payload.length
+					- languageCodeLength - 1, textEncoding);
+		}
+	}
+	
 }

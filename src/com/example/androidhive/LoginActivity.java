@@ -30,12 +30,13 @@ public class LoginActivity extends Activity {
 	JSONParser jsonParser = new JSONParser();
 	
 	// url to create new product
-	private static String url_validate_user = "http://10.0.2.2/android_connect/login.php";
+	private static String url_validate_user = "http://zatika.co/android_connect/login.php";
 	//private static String url_validate_user = "http://zatika.co/android_connect/create_product.php";
 	
 	// JSON Node names
 	private static final String TAG_SUCCESS = "success";
-
+	
+	private Session session;//global variable 
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +46,8 @@ public class LoginActivity extends Activity {
 		// Edit Text
 		userID = (EditText) findViewById(R.id.txtLoginid);
 		password = (EditText) findViewById(R.id.txtPassword);
+		
+		session = new Session(getApplicationContext());
 		
 		// Create button
 		login = (Button) findViewById(R.id.btnLogin);
@@ -99,6 +102,8 @@ public class LoginActivity extends Activity {
 			List<NameValuePair> params = new ArrayList<NameValuePair>();
 			params.add(new BasicNameValuePair("loginID", loginID));
 			params.add(new BasicNameValuePair("loginPassword", loginPassword));
+			 
+			session.setusename(loginID);
 			
 			JSONObject json = jsonParser.makeHttpRequest(url_validate_user,
 					"POST", params);

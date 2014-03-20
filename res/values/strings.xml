@@ -8,5 +8,7 @@
     <string name="activity_login">LoginActivity</string>
     <string name="activity_wrshome">WRSHomeActivity</string>
     <string name="activity_patient_details">PatientDetailsActivity</string>
+    <string name="activity_my_appoinments">MyAppoinmentsActivity</string>
+    <string name="activity_my_appointments">MyAppointmentsActivity</string>
 
 </resources>

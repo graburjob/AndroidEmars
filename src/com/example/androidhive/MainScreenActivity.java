@@ -40,7 +40,7 @@ public class MainScreenActivity extends Activity{
 			@Override
 			public void onClick(View view) {
 				// Launching create new product activity
-				Intent i = new Intent(getApplicationContext(), NewProductActivity.class);
+				Intent i = new Intent(getApplicationContext(), MyAppointmentsActivity.class);
 				startActivity(i);
 				
 			}
